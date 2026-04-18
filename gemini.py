@@ -8,7 +8,8 @@ from config import GEMINI_API_KEY
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-MODELS = ["gemma-4-26b-a4b-it", "gemini-2.5-flash", "gemini-2.0-flash"]
+MODELS = ["gemma-4-26b-a4b-it", "gemini-2.5-flash", "gemini-3-flash-preview", "gemini-3.1-flash-lite-preview", "gemini-2.5-flash-lite"]
+GEMMA_MODELS = {"gemma-4-26b-a4b-it"}
 
 TZ = pytz.timezone("Asia/Taipei")
 
@@ -55,18 +56,39 @@ def parse_command(text: str) -> dict:
     last_err = None
     for model_name in MODELS:
         try:
-            model = genai.GenerativeModel(model_name)
+            gen_config = None
+            if model_name in GEMMA_MODELS:
+                gen_config = {"response_mime_type": "application/json"}
+            model = genai.GenerativeModel(model_name, generation_config=gen_config)
             resp = model.generate_content(prompt)
             raw = resp.text.strip()
-            # extract JSON
-            m = re.search(r'\{.*\}', raw, re.DOTALL)
-            if m:
-                return json.loads(m.group())
+            parsed = _extract_json(raw)
+            if parsed is not None:
+                return parsed
         except Exception as e:
             last_err = e
             continue
 
     return {"action": "unknown", "reply": f"AI 解析失敗：{last_err}"}
+
+
+def _extract_json(text: str) -> dict | None:
+    """Find the first balanced {...} block and parse it as JSON."""
+    start = text.find('{')
+    if start == -1:
+        return None
+    depth = 0
+    for i, ch in enumerate(text[start:], start):
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0:
+                try:
+                    return json.loads(text[start:i + 1])
+                except json.JSONDecodeError:
+                    return None
+    return None
 
 
 def format_schedule(events: list[dict], label: str) -> str:
