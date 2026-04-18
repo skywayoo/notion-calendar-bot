@@ -83,7 +83,8 @@ def get_events_range(start_dt: datetime, end_dt: datetime) -> list[dict]:
     return get_events(start_dt.isoformat(), end_dt.isoformat())
 
 
-def add_event(title: str, dt: str, description: str = "") -> dict:
+def add_event(title: str, dt: str, description: str | None = "") -> dict:
+    description = description or ""
     """Create a new event. dt is ISO datetime string e.g. '2026-04-18T14:00:00+08:00'"""
     url = "https://api.notion.com/v1/pages"
     body = {

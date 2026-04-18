@@ -28,8 +28,8 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     try:
         if action == "add":
             dt = parsed.get("datetime")
-            title = parsed.get("title", "未命名事件")
-            desc = parsed.get("description", "")
+            title = parsed.get("title") or "未命名事件"
+            desc = parsed.get("description") or ""
             if not dt:
                 await update.message.reply_text("⚠️ 請告訴我事件的日期和時間")
                 return
