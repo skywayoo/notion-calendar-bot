@@ -1,12 +1,13 @@
-"""Entry point."""
+"""Entry point — webhook mode for Railway deployment."""
 import asyncio
 import logging
+import os
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from telegram.ext import MessageHandler, CallbackQueryHandler, filters
 import pytz
 
-from config import TELEGRAM_CHAT_ID
+from config import TELEGRAM_CHAT_ID, TELEGRAM_BOT_TOKEN
 from bot import get_app, handle_message, handle_confirm
 from scheduler import send_today_summary, send_tomorrow_summary, check_reminders
 
@@ -17,6 +18,9 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 TZ = pytz.timezone("Asia/Taipei")
 
+WEBHOOK_URL = "https://calendar-bot-production-4ed8.up.railway.app"
+PORT = int(os.environ.get("PORT", 8080))
+
 
 async def main():
     app = get_app()
@@ -24,22 +28,28 @@ async def main():
     app.add_handler(CallbackQueryHandler(handle_confirm, pattern="^confirm:"))
 
     await app.initialize()
+    await app.bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
     await app.start()
-    await app.updater.start_polling()
 
-    bot = app.bot
-    await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text="📅 行事曆 Bot 已啟動！\n\n你可以說：\n• 新增明天下午3點開會\n• 刪除明天的開會\n• 修改開會時間到4點\n• 今天有什麼行程")
+    await app.bot.send_message(
+        chat_id=TELEGRAM_CHAT_ID,
+        text="📅 行事曆 Bot 已啟動（Webhook 模式）！",
+    )
 
     scheduler = AsyncIOScheduler(timezone=TZ)
-    # 8am today summary
-    scheduler.add_job(send_today_summary, CronTrigger(hour=8, minute=0, timezone=TZ), args=[bot, TELEGRAM_CHAT_ID])
-    # 8pm tomorrow summary
-    scheduler.add_job(send_tomorrow_summary, CronTrigger(hour=20, minute=0, timezone=TZ), args=[bot, TELEGRAM_CHAT_ID])
-    # every minute: check 30min reminders
-    scheduler.add_job(check_reminders, "interval", minutes=1, args=[bot, TELEGRAM_CHAT_ID])
+    scheduler.add_job(send_today_summary, CronTrigger(hour=8, minute=0, timezone=TZ), args=[app.bot, TELEGRAM_CHAT_ID])
+    scheduler.add_job(send_tomorrow_summary, CronTrigger(hour=20, minute=0, timezone=TZ), args=[app.bot, TELEGRAM_CHAT_ID])
+    scheduler.add_job(check_reminders, "interval", minutes=1, args=[app.bot, TELEGRAM_CHAT_ID])
     scheduler.start()
 
-    log.info("Calendar bot running. Press Ctrl+C to stop.")
+    log.info(f"Starting webhook on port {PORT}")
+    await app.updater.start_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path="webhook",
+        webhook_url=f"{WEBHOOK_URL}/webhook",
+    )
+
     try:
         await asyncio.Event().wait()
     finally:
