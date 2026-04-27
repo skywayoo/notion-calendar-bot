@@ -61,7 +61,18 @@ def parse_command(text: str) -> dict:
                 gen_config = {"response_mime_type": "application/json"}
             model = genai.GenerativeModel(model_name, generation_config=gen_config)
             resp = model.generate_content(prompt)
-            raw = resp.text.strip()
+            # Gemma/Gemini thinking models split content into [{thought: True, text: "..."}, {text: answer}]
+            # resp.text raises if the first part is a thought; concatenate non-thought parts manually.
+            raw_pieces = []
+            for cand in (resp.candidates or []):
+                for part in (cand.content.parts or []):
+                    if getattr(part, "thought", False):
+                        continue
+                    if getattr(part, "text", None):
+                        raw_pieces.append(part.text)
+                if raw_pieces:
+                    break
+            raw = "".join(raw_pieces).strip()
             parsed = _extract_json(raw)
             if parsed is not None:
                 return parsed
