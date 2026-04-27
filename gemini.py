@@ -8,8 +8,8 @@ from config import GEMINI_API_KEY
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-MODELS = ["gemma-3-27b-it"]
-GEMMA_MODELS = {"gemma-3-27b-it"}
+MODELS = ["gemma-4-31b-it"]
+GEMMA_MODELS = {"gemma-4-31b-it"}
 
 TZ = pytz.timezone("Asia/Taipei")
 
